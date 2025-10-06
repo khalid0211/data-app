@@ -1,1 +1,1 @@
-config/firebase_config.json *.json
+config/firebase_config.json *.json.streamlit/google_credentials.json

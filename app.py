@@ -1,14 +1,14 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from utils.firebase_utils import (add_book, edit_book, delete_book, get_books,
-                                  add_bookshelf, edit_bookshelf, delete_bookshelf, get_bookshelves,
-                                  add_owner, edit_owner, delete_owner, get_owners,
-                                  generate_tracking_number, db,
-                                  get_all_users, update_user_access,
-                                  lend_book, return_book, get_active_loans, get_loan_history)
+from utils.firebase_db import (add_book, edit_book, delete_book, get_books,
+                               add_bookshelf, edit_bookshelf, delete_bookshelf, get_bookshelves,
+                               add_owner, edit_owner, delete_owner, get_owners,
+                               generate_tracking_number, db,
+                               get_all_users, update_user_access,
+                               lend_book, return_book, get_active_loans, get_loan_history)
 from utils.book_api import search_book_by_title
-from utils.simple_auth import check_authentication, show_user_info_sidebar, can_add_edit_delete, can_view
+from utils.auth import check_authentication, show_user_info_sidebar, can_add_edit_delete, can_view
 from utils.auth_utils import is_admin, get_user_profile, update_user_profile
 
 # Page configuration
@@ -1177,7 +1177,7 @@ def book_lending_page():
 
 def main():
     # Check authentication first
-    if not check_authentication(db):
+    if not check_authentication():
         return  # Stop here if not authenticated
 
     initialize_session_state()

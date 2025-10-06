@@ -4,7 +4,7 @@ Supports both Google OAuth and Temporary Authentication
 """
 
 import streamlit as st
-from utils.firebase_utils import db
+from utils.firebase_db import db
 from utils.auth_utils import create_or_update_user, get_user_access_level, is_admin
 
 # Authentication mode configuration

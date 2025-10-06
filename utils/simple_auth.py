@@ -5,7 +5,7 @@ For production, replace this with proper Firebase Authentication.
 """
 
 import streamlit as st
-from utils.firebase_utils import get_all_users
+from utils.firebase_db import get_all_users
 from utils.auth_utils import ADMIN_EMAIL, is_admin, get_user_access_level, create_or_update_user
 
 def init_session_state():
