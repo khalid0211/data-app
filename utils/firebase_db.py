@@ -12,7 +12,7 @@ def initialize_firebase():
     if not firebase_admin._apps:
         # Try to use Streamlit secrets first (for cloud deployment)
         if hasattr(st, 'secrets') and 'firebase' in st.secrets:
-            # Use secrets from Streamlit Cloud
+            # Use secrets from Streamlit Cloud - only required fields
             firebase_config = {
                 "type": st.secrets["firebase"]["type"],
                 "project_id": st.secrets["firebase"]["project_id"],
@@ -21,9 +21,7 @@ def initialize_firebase():
                 "client_email": st.secrets["firebase"]["client_email"],
                 "client_id": st.secrets["firebase"]["client_id"],
                 "auth_uri": st.secrets["firebase"]["auth_uri"],
-                "token_uri": st.secrets["firebase"]["token_uri"],
-                "auth_provider_x509_cert_url": st.secrets["firebase"]["auth_provider_x509_cert_url"],
-                "client_x509_cert_url": st.secrets["firebase"]["client_x509_cert_url"]
+                "token_uri": st.secrets["firebase"]["token_uri"]
             }
             cred = credentials.Certificate(firebase_config)
         else:
