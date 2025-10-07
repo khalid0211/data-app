@@ -1,8 +1,6 @@
 streamlit
 firebase-admin
-firebase
 pandas
 requests
-pyrebase4
 streamlit-authenticator
 python-jwt

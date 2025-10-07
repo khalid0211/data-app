@@ -1,52 +1,8 @@
 import streamlit as st
-import json
-import pyrebase
 from datetime import datetime
 
 # Admin email - hardcoded for security
 ADMIN_EMAIL = "khalid0211@gmail.com"
-
-def load_firebase_config():
-    """Load Firebase web configuration"""
-    try:
-        with open('config/firebase_config.json', 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        st.error("⚠️ Firebase configuration file not found. Please create config/firebase_config.json")
-        return None
-    except json.JSONDecodeError:
-        st.error("⚠️ Invalid Firebase configuration file")
-        return None
-
-def initialize_firebase_auth():
-    """Initialize Firebase for authentication"""
-    config = load_firebase_config()
-    if not config:
-        return None
-
-    try:
-        firebase = pyrebase.initialize_app(config)
-        return firebase
-    except Exception as e:
-        st.error(f"⚠️ Error initializing Firebase: {str(e)}")
-        return None
-
-def google_sign_in():
-    """Handle Google Sign-In"""
-    firebase = initialize_firebase_auth()
-    if not firebase:
-        return None
-
-    auth = firebase.auth()
-
-    # Note: Pyrebase doesn't directly support Google Sign-In popup
-    # This is a placeholder - you'll need to implement this using Firebase JS SDK
-    # or use streamlit-google-auth library
-
-    st.warning("⚠️ Google Sign-In requires additional setup with Firebase JS SDK")
-    st.info("Please follow the authentication guide for complete implementation")
-
-    return None
 
 def is_admin(email):
     """Check if user is admin"""
