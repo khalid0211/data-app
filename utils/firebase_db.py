@@ -7,18 +7,41 @@ from datetime import datetime
 def initialize_firebase():
     """
     Initializes the Firebase Admin SDK, checking to prevent re-initialization.
+    Uses Streamlit secrets when available, falls back to local file for development.
     """
     if not firebase_admin._apps:
-        # The path to your service account key file
-        key_path = "D:\\Dropbox\\MySoftware\\Portfolio\\mylibrary-firebase.json"
+        # Try to use Streamlit secrets first (for cloud deployment)
+        if hasattr(st, 'secrets') and 'firebase' in st.secrets:
+            # Use secrets from Streamlit Cloud
+            firebase_config = {
+                "type": st.secrets["firebase"]["type"],
+                "project_id": st.secrets["firebase"]["project_id"],
+                "private_key_id": st.secrets["firebase"]["private_key_id"],
+                "private_key": st.secrets["firebase"]["private_key"],
+                "client_email": st.secrets["firebase"]["client_email"],
+                "client_id": st.secrets["firebase"]["client_id"],
+                "auth_uri": st.secrets["firebase"]["auth_uri"],
+                "token_uri": st.secrets["firebase"]["token_uri"],
+                "auth_provider_x509_cert_url": st.secrets["firebase"]["auth_provider_x509_cert_url"],
+                "client_x509_cert_url": st.secrets["firebase"]["client_x509_cert_url"]
+            }
+            cred = credentials.Certificate(firebase_config)
+        else:
+            # Fall back to local file for development
+            key_path = "config/firebase_config.json"
 
-        if not os.path.exists(key_path):
-            # This will show a clear error in Streamlit if the key is not found
-            raise FileNotFoundError(f"Firebase service account key not found at {key_path}.")
+            if not os.path.exists(key_path):
+                raise FileNotFoundError(
+                    f"Firebase configuration not found. "
+                    f"Please ensure either:\n"
+                    f"1. Streamlit secrets are configured (for cloud deployment), or\n"
+                    f"2. {key_path} exists (for local development)"
+                )
 
-        cred = credentials.Certificate(key_path)
+            cred = credentials.Certificate(key_path)
+
         firebase_admin.initialize_app(cred)
-    
+
     return firestore.client()
 
 # Initialize Firestore client
