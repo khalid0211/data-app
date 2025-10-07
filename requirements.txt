@@ -3,4 +3,5 @@ firebase-admin
 pandas
 requests
 streamlit-authenticator
+streamlit-google-auth
 python-jwt
