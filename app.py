@@ -8,7 +8,7 @@ from utils.firebase_db import (add_book, edit_book, delete_book, get_books,
                                get_all_users, update_user_access, delete_user,
                                lend_book, return_book, get_active_loans, get_loan_history)
 from utils.book_api import search_book_by_title
-from utils.auth import check_authentication, show_user_info_sidebar, can_add_edit_delete, can_view
+from utils.streamlit_auth import check_authentication, show_user_info_sidebar, can_add_edit_delete, can_view
 from utils.auth_utils import is_admin, get_user_profile, update_user_profile
 
 # Page configuration
