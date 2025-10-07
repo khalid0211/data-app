@@ -104,8 +104,6 @@ def show_google_login_button(authenticator):
     **To access the library:**
     1. Click "Login with Google" below
     2. Sign in with your Google account
-    3. Admin (khalid0211@gmail.com) gets full access automatically
-    4. Other users need approval from admin
     """)
 
     # Center the login button

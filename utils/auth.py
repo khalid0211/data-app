@@ -101,9 +101,7 @@ def show_no_access_page():
 
     Your account has been created, but you don't have access to the library system yet.
 
-    **📧 To request access:**
-    Please contact **Dr. Khalid Ahmad Khan** at:
-    - Email: khalid0211@gmail.com
+    After you login, request for access by sending email to khalid0211@gmail.com
 
     Once approved, you'll be able to access the system.
     """)
