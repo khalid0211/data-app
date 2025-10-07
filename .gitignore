@@ -1,1 +1,2 @@
 config/firebase_config.json *.json.streamlit/google_credentials.json
+secrets.toml
