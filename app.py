@@ -5,7 +5,7 @@ from utils.firebase_db import (add_book, edit_book, delete_book, get_books,
                                add_bookshelf, edit_bookshelf, delete_bookshelf, get_bookshelves,
                                add_owner, edit_owner, delete_owner, get_owners,
                                generate_tracking_number, db,
-                               get_all_users, update_user_access,
+                               get_all_users, update_user_access, delete_user,
                                lend_book, return_book, get_active_loans, get_loan_history)
 from utils.book_api import search_book_by_title
 from utils.auth import check_authentication, show_user_info_sidebar, can_add_edit_delete, can_view
@@ -1001,13 +1001,28 @@ def manage_users_page():
                 key=f"access_{user.get('id')}"
             )
 
-            if st.button(f"💾 Update Access", key=f"update_{user.get('id')}", use_container_width=True):
-                success = update_user_access(user.get('id'), new_access, st.session_state.user_email)
-                if success:
-                    st.success(f"✅ Updated {email} to {new_access} access!")
-                    st.rerun()
-                else:
-                    st.error("❌ Failed to update access!")
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button(f"💾 Update Access", key=f"update_{user.get('id')}", use_container_width=True):
+                    success = update_user_access(user.get('id'), new_access, st.session_state.user_email)
+                    if success:
+                        st.success(f"✅ Updated {email} to {new_access} access!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to update access!")
+
+            with col_btn2:
+                if st.button(f"🗑️ Delete User", key=f"delete_{user.get('id')}", type="primary", use_container_width=True):
+                    # Prevent deleting yourself
+                    if email == st.session_state.user_email:
+                        st.error("❌ You cannot delete your own account!")
+                    else:
+                        success = delete_user(user.get('id'))
+                        if success:
+                            st.success(f"✅ User {email} deleted successfully!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to delete user!")
 
 def book_lending_page():
     """Admin-only book lending page"""

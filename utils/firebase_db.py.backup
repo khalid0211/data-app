@@ -263,15 +263,6 @@ def update_user_access(user_id, access_level, approved_by):
         print(f"Error updating user access: {e}")
         return False
 
-
-def delete_user(user_id):
-    """Delete a user from Firestore"""
-    try:
-        db.collection('users').document(user_id).delete()
-        return True
-    except Exception as e:
-        print(f"Error deleting user: {e}")
-        return False
 # Book Lending Functions
 def lend_book(book_id, borrower_email, borrower_name, lender_email, due_date):
     """Lend a book to a user"""
