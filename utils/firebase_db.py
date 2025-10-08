@@ -27,7 +27,9 @@ def initialize_firebase():
             cred = credentials.Certificate(creds_dict)
         except (AttributeError, KeyError):
             # Fallback to local file for development if secrets are not available
-            key_path = "D:\\Dropbox\\MySoftware\\Portfolio\\mylibrary-firebase.json"
+            # Use a relative path from the project root
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            key_path = os.path.join(base_dir, "config", "mylibrary-firebase.json")
 
             if not os.path.exists(key_path):
                 raise FileNotFoundError(
