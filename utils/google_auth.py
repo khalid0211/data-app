@@ -16,16 +16,25 @@ def initialize_google_auth():
         client_secret = st.secrets["google_oauth"]["client_secret"]
         redirect_uri = st.secrets["google_oauth"]["redirect_uri"]
 
-        # Pass credentials directly as a dictionary
+        # The streamlit-google-auth library requires a file path.
+        # We create a temporary JSON file to hold the credentials.
         credentials_dict = {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "redirect_uri": redirect_uri
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "redirect_uris": [redirect_uri],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token"
+            }
         }
 
-        # Create authenticator with the credentials file
+        # Write credentials to a temporary file
+        credentials_path = os.path.join("/tmp", "google_credentials.json")
+        with open(credentials_path, "w") as f:
+            json.dump(credentials_dict, f)
+
         authenticator = Authenticate(
-            secret_credentials=credentials_dict,
+            secret_credentials_path=credentials_path,
             cookie_name='library_auth_cookie',
             cookie_key='library_auth_key_randomly_generated_12345',
             redirect_uri=redirect_uri,
