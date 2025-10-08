@@ -2,6 +2,7 @@
 Google OAuth Authentication Module
 Uses streamlit-google-auth for Google Sign-In
 """
+from google_auth_oauthlib.flow import Flow
 
 import streamlit as st
 from streamlit_google_auth import Authenticate
@@ -10,6 +11,12 @@ import os
 
 def initialize_google_auth():
     """Initialize Google OAuth authenticator"""
+    # This function will now only be used to check for secrets
+    # and return the authenticator for session management.
+    # The login button logic is handled separately.
+    if "google_oauth" not in st.secrets:
+        st.error("Google OAuth secrets not found!")
+        return None
     try:
         # Get credentials from Streamlit secrets
         client_id = st.secrets["google_oauth"]["client_id"]
@@ -57,7 +64,7 @@ def initialize_google_auth():
         return None
 
 def check_google_authentication(db, authenticator):
-    """
+    """ 
     Check Google authentication and return user info
 
     Returns:
@@ -84,38 +91,54 @@ def check_google_authentication(db, authenticator):
 
 def show_google_login_button(authenticator):
     """Display Google Sign-In button"""
-    st.markdown("<h1 style='text-align: center;'>📚 Library Management System</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center;'>🔐 Sign in with Google</h3>", unsafe_allow_html=True)
+    try:
+        st.markdown("<h1 style='text-align: center;'>📚 Library Management System</h1>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center;'>🔐 Sign in with Google</h3>", unsafe_allow_html=True)
 
-    st.markdown("---")
+        st.markdown("---")
 
-    st.info("""
-    **🔒 Secure Google Authentication**
+        st.info("""
+        **🔒 Secure Google Authentication**
 
-    This system uses Google OAuth for secure authentication.
+        This system uses Google OAuth for secure authentication.
 
-    **To access the library:**
-    1. Click "Login with Google" below
-    2. Sign in with your Google account
-    """)
+        **To access the library:**
+        1. Click "Login with Google" below
+        2. Sign in with your Google account
+        """)
 
-    # Center the login button
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        # Generate the login URL from the authenticator
-        login_url = authenticator.get_login_url()
-        # Use a standard Streamlit button that redirects the page
-        if st.button("Login with Google", use_container_width=True, type="primary"):
-            st.markdown(f'<meta http-equiv="refresh" content="0; url={login_url}">', unsafe_allow_html=True)
+        # Manually construct the authorization URL to force a full-page redirect
+        client_config = {
+            "web": {
+                "client_id": st.secrets["google_oauth"]["client_id"],
+                "client_secret": st.secrets["google_oauth"]["client_secret"],
+                "redirect_uris": [st.secrets["google_oauth"]["redirect_uri"]],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        }
+        flow = Flow.from_client_config(
+            client_config,
+            scopes=['https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/userinfo.email', 'openid'],
+            redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
+        )
+        authorization_url, _ = flow.authorization_url(prompt='consent')
 
-    st.markdown("---")
-    st.markdown("""
-    <div style='text-align: center; color: #666; font-size: 0.9em;'>
-    <p>🔒 Secure authentication powered by Google</p>
-    <p>For access approval, contact: <strong>Dr. Khalid Ahmad Khan</strong><br>
-    📧 khalid0211@gmail.com</p>
-    </div>
-    """, unsafe_allow_html=True)
+        # Center the login button
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col2:
+            st.link_button("Login with Google", authorization_url, use_container_width=True, type="primary")
+
+        st.markdown("---")
+        st.markdown("""
+        <div style='text-align: center; color: #666; font-size: 0.9em;'>
+        <p>🔒 Secure authentication powered by Google</p>
+        <p>For access approval, contact: <strong>Dr. Khalid Ahmad Khan</strong><br>
+        📧 khalid0211@gmail.com</p>
+        </div>
+        """, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Error creating login button: {e}")
 
 def show_google_logout_button(authenticator):
     """Display logout button"""

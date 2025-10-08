@@ -4,3 +4,4 @@ pandas
 requests
 pyrebase4
 streamlit-google-auth
+google-auth-oauthlib
