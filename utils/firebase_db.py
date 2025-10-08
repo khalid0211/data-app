@@ -10,10 +10,9 @@ def initialize_firebase():
     Uses Streamlit secrets when available, falls back to local file for development.
     """
     if not firebase_admin._apps:
-        # Try to use Streamlit secrets first (for cloud deployment)
-        if hasattr(st, 'secrets') and 'firebase' in st.secrets:
-            # Use secrets from Streamlit Cloud - only required fields
-            firebase_config = {
+        try:
+            # Use secrets from Streamlit Cloud (for deployment)
+            creds_dict = {
                 "type": st.secrets["firebase"]["type"],
                 "project_id": st.secrets["firebase"]["project_id"],
                 "private_key_id": st.secrets["firebase"]["private_key_id"],
@@ -21,19 +20,19 @@ def initialize_firebase():
                 "client_email": st.secrets["firebase"]["client_email"],
                 "client_id": st.secrets["firebase"]["client_id"],
                 "auth_uri": st.secrets["firebase"]["auth_uri"],
-                "token_uri": st.secrets["firebase"]["token_uri"]
+                "token_uri": st.secrets["firebase"]["token_uri"],
+                "auth_provider_x509_cert_url": st.secrets["firebase"]["auth_provider_x509_cert_url"],
+                "client_x509_cert_url": st.secrets["firebase"]["client_x509_cert_url"]
             }
-            cred = credentials.Certificate(firebase_config)
-        else:
-            # Fall back to local file for development
-            key_path = "config/firebase_config.json"
+            cred = credentials.Certificate(creds_dict)
+        except (AttributeError, KeyError):
+            # Fallback to local file for development if secrets are not available
+            key_path = "D:\\Dropbox\\MySoftware\\Portfolio\\mylibrary-firebase.json"
 
             if not os.path.exists(key_path):
                 raise FileNotFoundError(
-                    f"Firebase configuration not found. "
-                    f"Please ensure either:\n"
-                    f"1. Streamlit secrets are configured (for cloud deployment), or\n"
-                    f"2. {key_path} exists (for local development)"
+                    f"Firebase Admin SDK key not found at {key_path}. "
+                    "Ensure the file exists for local development."
                 )
 
             cred = credentials.Certificate(key_path)
