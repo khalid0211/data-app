@@ -55,7 +55,7 @@ A comprehensive library management system built with Streamlit and Firebase, fea
 cd F:\Coding\data-app
 
 # Install dependencies
-python -m pip install streamlit firebase-admin pandas requests pyrebase4 setuptools
+python -m pip install -r requirements.txt
 ```
 
 ### 2. Firebase Setup

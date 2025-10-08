@@ -1,5 +1,6 @@
-streamlit>=1.42.0
-Authlib>=1.3.2
+streamlit
 firebase-admin
 pandas
 requests
+pyrebase4
+streamlit-google-auth
