@@ -102,7 +102,11 @@ def show_google_login_button(authenticator):
     # Center the login button
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        authenticator.login(key="google_login_button")
+        # Generate the login URL from the authenticator
+        login_url = authenticator.get_login_url()
+        # Use a standard Streamlit button that redirects the page
+        if st.button("Login with Google", use_container_width=True, type="primary"):
+            st.markdown(f'<meta http-equiv="refresh" content="0; url={login_url}">', unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown("""
