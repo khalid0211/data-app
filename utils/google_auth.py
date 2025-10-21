@@ -8,6 +8,7 @@ import streamlit as st
 from streamlit_google_auth import Authenticate
 import json
 import os
+import tempfile
 
 def initialize_google_auth():
     """Initialize Google OAuth authenticator"""
@@ -35,8 +36,9 @@ def initialize_google_auth():
             }
         }
 
-        # Write credentials to a temporary file
-        credentials_path = os.path.join("/tmp", "google_credentials.json")
+        # Write credentials to a temporary file (cross-platform)
+        temp_dir = tempfile.gettempdir()
+        credentials_path = os.path.join(temp_dir, "google_credentials.json")
         with open(credentials_path, "w") as f:
             json.dump(credentials_dict, f)
 

@@ -71,7 +71,6 @@ def add_book(title, authors, publisher, edition, publish_date_str, page_count=''
             'lent_date': '',
             'lent_by': ''
         })
-        get_books.clear()  # Clear cache after adding
         return True, tracking_number
     except Exception as e:
         print(f"Error adding book: {e}")
@@ -109,7 +108,6 @@ def edit_book(book_id, title, authors, publisher, edition, publish_date_str, pag
             update_data['tracking_number'] = tracking_number
 
         db.collection('books').document(book_id).update(update_data)
-        get_books.clear()  # Clear cache after editing
         return True
     except Exception as e:
         print(f"Error updating book: {e}")
@@ -119,7 +117,6 @@ def delete_book(book_id):
     """Deletes a book from Firestore by its ID."""
     try:
         db.collection('books').document(book_id).delete()
-        get_books.clear()  # Clear cache after deleting
         return True
     except Exception as e:
         print(f"Error deleting book: {e}")
@@ -144,7 +141,6 @@ def add_bookshelf(title, description=''):
             'title': title,
             'description': description
         })
-        get_bookshelves.clear()  # Clear cache after adding
         return True, new_id
     except Exception as e:
         print(f"Error adding bookshelf: {e}")
@@ -167,7 +163,6 @@ def edit_bookshelf(doc_id, title, description=''):
             'title': title,
             'description': description
         })
-        get_bookshelves.clear()  # Clear cache after editing
         return True
     except Exception as e:
         print(f"Error updating bookshelf: {e}")
@@ -177,7 +172,6 @@ def delete_bookshelf(doc_id):
     """Deletes a bookshelf from Firestore by its document ID."""
     try:
         db.collection('bookshelves').document(doc_id).delete()
-        get_bookshelves.clear()  # Clear cache after deleting
         return True
     except Exception as e:
         print(f"Error deleting bookshelf: {e}")
@@ -233,7 +227,6 @@ def add_owner(owner_id, name, email='', cell_phone=''):
             'email': email,
             'cell_phone': cell_phone
         })
-        get_owners.clear()  # Clear cache after adding
         return True, "Success"
     except Exception as e:
         print(f"Error adding owner: {e}")
@@ -257,7 +250,6 @@ def edit_owner(doc_id, name, email='', cell_phone=''):
             'email': email,
             'cell_phone': cell_phone
         })
-        get_owners.clear()  # Clear cache after editing
         return True
     except Exception as e:
         print(f"Error updating owner: {e}")
@@ -267,7 +259,6 @@ def delete_owner(doc_id):
     """Deletes an owner from Firestore by its document ID."""
     try:
         db.collection('owners').document(doc_id).delete()
-        get_owners.clear()  # Clear cache after deleting
         return True
     except Exception as e:
         print(f"Error deleting owner: {e}")
@@ -346,7 +337,6 @@ def lend_book(book_id, borrower_email, borrower_name, lender_email, due_date):
             'approved_by': lender_email
         })
 
-        get_books.clear()  # Clear cache after lending
         return True, "Book lent successfully"
     except Exception as e:
         print(f"Error lending book: {e}")
@@ -374,7 +364,6 @@ def return_book(book_id):
                 'returned_date': current_date
             })
 
-        get_books.clear()  # Clear cache after returning
         return True, "Book returned successfully"
     except Exception as e:
         print(f"Error returning book: {e}")

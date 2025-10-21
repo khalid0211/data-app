@@ -396,6 +396,12 @@ def view_books_page():
     if view_mode == "Table":
         # Create DataFrame for table view
         df_data = []
+
+        # Fetch bookshelves and owners once (already fetched above for filters)
+        # Reuse the data we already have
+        all_bookshelves = bookshelves  # Already fetched on line 328
+        all_owners = owners  # Already fetched on line 334
+
         for book in filtered_books:
             authors_str = book.get('authors', 'N/A')
             if isinstance(authors_str, list):
@@ -405,8 +411,7 @@ def view_books_page():
             shelf_id = book.get('bookshelf_id', '')
             shelf_title = ''
             if shelf_id:
-                bookshelves = get_bookshelves()
-                matching_shelf = next((s for s in bookshelves if str(s.get('shelf_id')) == str(shelf_id)), None)
+                matching_shelf = next((s for s in all_bookshelves if str(s.get('shelf_id')) == str(shelf_id)), None)
                 if matching_shelf:
                     shelf_title = matching_shelf.get('title', '')
 
@@ -414,8 +419,7 @@ def view_books_page():
             owner_id = book.get('owner_id', '')
             owner_name = ''
             if owner_id:
-                owners = get_owners()
-                matching_owner = next((o for o in owners if str(o.get('owner_id')) == str(owner_id)), None)
+                matching_owner = next((o for o in all_owners if str(o.get('owner_id')) == str(owner_id)), None)
                 if matching_owner:
                     owner_name = matching_owner.get('name', '')
 
@@ -443,6 +447,10 @@ def view_books_page():
 
     else:  # Cards view
         # Display books in expandable cards
+        # Reuse bookshelves and owners data already fetched above
+        all_bookshelves = bookshelves  # Already fetched on line 328
+        all_owners = owners  # Already fetched on line 334
+
         for book in filtered_books:
             authors_str = book.get('authors', 'N/A')
             if isinstance(authors_str, list):
@@ -452,8 +460,7 @@ def view_books_page():
             shelf_id = book.get('bookshelf_id', '')
             shelf_title = ''
             if shelf_id:
-                bookshelves = get_bookshelves()
-                matching_shelf = next((s for s in bookshelves if str(s.get('shelf_id')) == str(shelf_id)), None)
+                matching_shelf = next((s for s in all_bookshelves if str(s.get('shelf_id')) == str(shelf_id)), None)
                 if matching_shelf:
                     shelf_title = matching_shelf.get('title', '')
 
@@ -461,8 +468,7 @@ def view_books_page():
             owner_id = book.get('owner_id', '')
             owner_name = ''
             if owner_id:
-                owners = get_owners()
-                matching_owner = next((o for o in owners if str(o.get('owner_id')) == str(owner_id)), None)
+                matching_owner = next((o for o in all_owners if str(o.get('owner_id')) == str(owner_id)), None)
                 if matching_owner:
                     owner_name = matching_owner.get('name', '')
 
@@ -496,7 +502,7 @@ def view_books_page():
                 st.caption(f"Firestore ID: {book.get('id', 'N/A')}")
 
 def edit_delete_book_page():
-    """Edit/Delete book page with improved UI"""
+    """Edit/Delete book page with improved table-based UI"""
     st.markdown("<h2>✏️ Manage Books</h2>", unsafe_allow_html=True)
 
     books = get_books()
@@ -505,198 +511,265 @@ def edit_delete_book_page():
         st.info("📭 No books available to edit or delete.")
         return
 
-    # Book selection
-    book_options = [f"{book.get('title', 'Untitled')} - {book.get('authors', 'Unknown')} ({book.get('id', '')})"
-                   for book in books]
-    selected_option = st.selectbox("Select a book", book_options, key="book_selector")
+    # Search box
+    st.markdown("### 🔍 Search Books")
+    search_term = st.text_input(
+        "Search by Title, Author, ISBN, Year, or Tracking #",
+        placeholder="Enter search term...",
+        key="manage_search"
+    )
 
-    if selected_option:
-        # Extract book ID from selection
-        book_id = selected_option.split('(')[-1].rstrip(')')
-        selected_book = next((book for book in books if book.get('id') == book_id), None)
+    # Filter books based on search
+    filtered_books = books
+    if search_term:
+        search_term_lower = search_term.lower()
+        filtered_books = [
+            book for book in books
+            if search_term_lower in book.get('title', '').lower() or
+               search_term_lower in str(book.get('authors', '')).lower() or
+               search_term_lower in book.get('isbn', '').lower() or
+               search_term_lower in book.get('tracking_number', '').lower() or
+               search_term_lower in book.get('publish_date', '')[:4]  # Year search
+        ]
 
-        if selected_book:
-            # Create tabs for Edit and Delete
-            tab1, tab2 = st.tabs(["✏️ Edit", "🗑️ Delete"])
+    st.info(f"📊 Showing {len(filtered_books)} of {len(books)} books")
 
-            with tab1:
-                # Initialize session state for edit form
-                if 'edit_book_data' not in st.session_state:
-                    st.session_state.edit_book_data = {}
+    if not filtered_books:
+        st.warning("No books match your search criteria.")
+        return
 
-                # Search button to auto-fill missing data
-                st.markdown("### 🔍 Auto-Fill Missing Information")
-                col_search1, col_search2 = st.columns([3, 1])
+    st.markdown("---")
 
-                with col_search1:
-                    st.write(f"**Current Title:** {selected_book.get('title', 'N/A')}")
+    # Create a table with book data
+    st.markdown("### 📚 Books List")
+    st.caption("Click on a row below, then use Edit or Delete buttons")
 
-                with col_search2:
-                    search_btn = st.button("🔍 Search & Fill", use_container_width=True, type="secondary")
+    # Prepare table data
+    bookshelves = get_bookshelves()
+    owners = get_owners()
 
-                if search_btn:
-                    title_to_search = selected_book.get('title', '')
-                    if title_to_search:
-                        with st.spinner("Searching for book information..."):
-                            book_info = search_book_by_title(title_to_search)
+    table_data = []
+    for idx, book in enumerate(filtered_books):
+        authors_str = book.get('authors', 'N/A')
+        if isinstance(authors_str, list):
+            authors_str = ", ".join(authors_str)
 
-                            if book_info:
-                                # Only update fields that are empty or missing
-                                updated_fields = []
+        # Get year from publish_date
+        pub_date = book.get('publish_date', '')
+        year = pub_date[:4] if pub_date and len(pub_date) >= 4 else 'N/A'
 
-                                if not selected_book.get('isbn') and book_info.get('isbn'):
-                                    st.session_state.edit_book_data['isbn'] = book_info['isbn']
-                                    updated_fields.append('ISBN')
+        table_data.append({
+            "Tracking #": book.get('tracking_number', 'N/A'),
+            "Title": book.get('title', 'N/A'),
+            "Author(s)": authors_str[:40] + "..." if len(authors_str) > 40 else authors_str,
+            "ISBN": book.get('isbn', 'N/A'),
+            "Year": year,
+        })
 
-                                if not selected_book.get('page_count') and book_info.get('page_count'):
-                                    st.session_state.edit_book_data['page_count'] = str(book_info['page_count'])
-                                    updated_fields.append('Pages')
+    df = pd.DataFrame(table_data)
 
-                                if not selected_book.get('preview_url') and book_info.get('preview_url'):
-                                    st.session_state.edit_book_data['preview_url'] = book_info['preview_url']
-                                    updated_fields.append('Preview URL')
+    # Display table with selection
+    event = st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row"
+    )
 
-                                if not selected_book.get('publisher') and book_info.get('publisher'):
-                                    st.session_state.edit_book_data['publisher'] = book_info['publisher']
-                                    updated_fields.append('Publisher')
+    # Get selected book
+    selected_book = None
+    book_id = None
 
-                                if not selected_book.get('publish_date') and book_info.get('published_date'):
-                                    st.session_state.edit_book_data['publish_date'] = book_info['published_date']
-                                    updated_fields.append('Publish Date')
+    if event.selection.rows:
+        selected_idx = event.selection.rows[0]
+        selected_book = filtered_books[selected_idx]
+        book_id = selected_book.get('id')
 
-                                if updated_fields:
-                                    st.success(f"✅ Updated fields: {', '.join(updated_fields)}")
-                                    st.rerun()
-                                else:
-                                    st.info("ℹ️ All fields already have data. No updates needed.")
+    st.markdown("---")
+
+    if selected_book:
+        # Create tabs for Edit and Delete
+        tab1, tab2 = st.tabs(["✏️ Edit", "🗑️ Delete"])
+
+        with tab1:
+            # Initialize session state for edit form
+            if 'edit_book_data' not in st.session_state:
+                st.session_state.edit_book_data = {}
+
+            # Search button to auto-fill missing data
+            st.markdown("### 🔍 Auto-Fill Missing Information")
+            col_search1, col_search2 = st.columns([3, 1])
+
+            with col_search1:
+                st.write(f"**Current Title:** {selected_book.get('title', 'N/A')}")
+
+            with col_search2:
+                search_btn = st.button("🔍 Search & Fill", use_container_width=True, type="secondary")
+
+            if search_btn:
+                title_to_search = selected_book.get('title', '')
+                if title_to_search:
+                    with st.spinner("Searching for book information..."):
+                        book_info = search_book_by_title(title_to_search)
+
+                        if book_info:
+                            # Only update fields that are empty or missing
+                            updated_fields = []
+
+                            if not selected_book.get('isbn') and book_info.get('isbn'):
+                                st.session_state.edit_book_data['isbn'] = book_info['isbn']
+                                updated_fields.append('ISBN')
+
+                            if not selected_book.get('page_count') and book_info.get('page_count'):
+                                st.session_state.edit_book_data['page_count'] = str(book_info['page_count'])
+                                updated_fields.append('Pages')
+
+                            if not selected_book.get('preview_url') and book_info.get('preview_url'):
+                                st.session_state.edit_book_data['preview_url'] = book_info['preview_url']
+                                updated_fields.append('Preview URL')
+
+                            if not selected_book.get('publisher') and book_info.get('publisher'):
+                                st.session_state.edit_book_data['publisher'] = book_info['publisher']
+                                updated_fields.append('Publisher')
+
+                            if not selected_book.get('publish_date') and book_info.get('published_date'):
+                                st.session_state.edit_book_data['publish_date'] = book_info['published_date']
+                                updated_fields.append('Publish Date')
+
+                            if updated_fields:
+                                st.success(f"✅ Updated fields: {', '.join(updated_fields)}")
+                                st.rerun()
                             else:
-                                st.warning("⚠️ No information found for this title.")
+                                st.info("ℹ️ All fields already have data. No updates needed.")
+                        else:
+                            st.warning("⚠️ No information found for this title.")
 
-                st.markdown("---")
+            st.markdown("---")
 
-                with st.form("edit_book_form"):
-                    col1, col2 = st.columns(2)
+            with st.form("edit_book_form"):
+                col1, col2 = st.columns(2)
 
-                    # Check if tracking number exists, if not show warning
-                    current_tracking = selected_book.get('tracking_number', '')
-                    if not current_tracking:
-                        new_tracking = generate_tracking_number()
-                        st.warning(f"⚠️ **No tracking number!** Will auto-generate: {new_tracking}")
-                    else:
-                        st.info(f"📋 **Tracking Number:** {current_tracking}")
+                # Check if tracking number exists, if not show warning
+                current_tracking = selected_book.get('tracking_number', '')
+                if not current_tracking:
+                    new_tracking = generate_tracking_number()
+                    st.warning(f"⚠️ **No tracking number!** Will auto-generate: {new_tracking}")
+                else:
+                    st.info(f"📋 **Tracking Number:** {current_tracking}")
 
-                    with col1:
-                        new_title = st.text_input("Title", value=selected_book.get('title', ''))
+                with col1:
+                    new_title = st.text_input("Title", value=selected_book.get('title', ''))
 
-                        authors_val = selected_book.get('authors', '')
-                        if isinstance(authors_val, list):
-                            authors_val = ", ".join(authors_val)
-                        new_authors = st.text_input("Author(s)", value=authors_val)
+                    authors_val = selected_book.get('authors', '')
+                    if isinstance(authors_val, list):
+                        authors_val = ", ".join(authors_val)
+                    new_authors = st.text_input("Author(s)", value=authors_val)
 
-                        # Use session state data if available from search, otherwise use book data
-                        publisher_value = st.session_state.edit_book_data.get('publisher', selected_book.get('publisher', ''))
-                        new_publisher = st.text_input("Publisher", value=publisher_value)
+                    # Use session state data if available from search, otherwise use book data
+                    publisher_value = st.session_state.edit_book_data.get('publisher', selected_book.get('publisher', ''))
+                    new_publisher = st.text_input("Publisher", value=publisher_value)
 
-                        isbn_value = st.session_state.edit_book_data.get('isbn', selected_book.get('isbn', ''))
-                        new_isbn = st.text_input("ISBN", value=isbn_value)
+                    isbn_value = st.session_state.edit_book_data.get('isbn', selected_book.get('isbn', ''))
+                    new_isbn = st.text_input("ISBN", value=isbn_value)
 
-                    with col2:
-                        new_edition = st.text_input("Edition", value=selected_book.get('edition', ''))
+                with col2:
+                    new_edition = st.text_input("Edition", value=selected_book.get('edition', ''))
 
-                        page_count_value = st.session_state.edit_book_data.get('page_count', selected_book.get('page_count', ''))
-                        new_page_count = st.text_input("Pages", value=page_count_value)
+                    page_count_value = st.session_state.edit_book_data.get('page_count', selected_book.get('page_count', ''))
+                    new_page_count = st.text_input("Pages", value=page_count_value)
 
-                        # Parse date - use session state if available
-                        date_str = st.session_state.edit_book_data.get('publish_date', selected_book.get('publish_date', ''))
-                        try:
-                            current_date = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else datetime.now().date()
-                        except:
-                            current_date = datetime.now().date()
+                    # Parse date - use session state if available
+                    date_str = st.session_state.edit_book_data.get('publish_date', selected_book.get('publish_date', ''))
+                    try:
+                        current_date = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else datetime.now().date()
+                    except:
+                        current_date = datetime.now().date()
 
-                        new_publish_date = st.date_input("Publish Date", value=current_date)
+                    new_publish_date = st.date_input("Publish Date", value=current_date)
 
-                    # Bookshelf selector
-                    bookshelves = get_bookshelves()
-                    shelf_options = [''] + [f"{shelf.get('shelf_id')} - {shelf.get('title')}" for shelf in bookshelves]
+                # Bookshelf selector
+                bookshelves = get_bookshelves()
+                shelf_options = [''] + [f"{shelf.get('shelf_id')} - {shelf.get('title')}" for shelf in bookshelves]
 
-                    # Find current bookshelf index
-                    current_shelf_id = str(selected_book.get('bookshelf_id', ''))
-                    current_index = 0
-                    if current_shelf_id:
-                        for i, opt in enumerate(shelf_options):
-                            if opt.startswith(f"{current_shelf_id} -"):
-                                current_index = i
-                                break
+                # Find current bookshelf index
+                current_shelf_id = str(selected_book.get('bookshelf_id', ''))
+                current_index = 0
+                if current_shelf_id:
+                    for i, opt in enumerate(shelf_options):
+                        if opt.startswith(f"{current_shelf_id} -"):
+                            current_index = i
+                            break
 
-                    new_bookshelf = st.selectbox("Bookshelf Location", shelf_options, index=current_index)
+                new_bookshelf = st.selectbox("Bookshelf Location", shelf_options, index=current_index)
 
-                    # Owner selector
-                    owners = get_owners()
-                    owner_options = [''] + [f"{owner.get('owner_id')} - {owner.get('name')}" for owner in owners]
+                # Owner selector
+                owners = get_owners()
+                owner_options = [''] + [f"{owner.get('owner_id')} - {owner.get('name')}" for owner in owners]
 
-                    # Find current owner index
-                    current_owner_id = str(selected_book.get('owner_id', ''))
-                    current_owner_index = 0
-                    if current_owner_id:
-                        for i, opt in enumerate(owner_options):
-                            if opt.startswith(f"{current_owner_id} -"):
-                                current_owner_index = i
-                                break
+                # Find current owner index
+                current_owner_id = str(selected_book.get('owner_id', ''))
+                current_owner_index = 0
+                if current_owner_id:
+                    for i, opt in enumerate(owner_options):
+                        if opt.startswith(f"{current_owner_id} -"):
+                            current_owner_index = i
+                            break
 
-                    new_owner = st.selectbox("Owner", owner_options, index=current_owner_index)
+                new_owner = st.selectbox("Owner", owner_options, index=current_owner_index)
 
-                    preview_url_value = st.session_state.edit_book_data.get('preview_url', selected_book.get('preview_url', ''))
-                    new_preview_url = st.text_input("Google Books Preview URL", value=preview_url_value)
+                preview_url_value = st.session_state.edit_book_data.get('preview_url', selected_book.get('preview_url', ''))
+                new_preview_url = st.text_input("Google Books Preview URL", value=preview_url_value)
 
-                    update_button = st.form_submit_button("💾 Update Book", use_container_width=True)
+                update_button = st.form_submit_button("💾 Update Book", use_container_width=True)
 
-                    if update_button:
-                        if not new_title or not new_title.strip():
-                            st.error("❌ Title cannot be empty!")
-                            return
-                        if not new_authors or not new_authors.strip():
-                            st.error("❌ At least one author is required!")
-                            return
+                if update_button:
+                    if not new_title or not new_title.strip():
+                        st.error("❌ Title cannot be empty!")
+                        return
+                    if not new_authors or not new_authors.strip():
+                        st.error("❌ At least one author is required!")
+                        return
 
-                        try:
-                            new_publish_date_str = new_publish_date.strftime("%Y-%m-%d")
+                    try:
+                        new_publish_date_str = new_publish_date.strftime("%Y-%m-%d")
 
-                            # Extract bookshelf ID
-                            selected_shelf_id = ''
-                            if new_bookshelf and new_bookshelf.strip():
-                                selected_shelf_id = new_bookshelf.split(' - ')[0]
+                        # Extract bookshelf ID
+                        selected_shelf_id = ''
+                        if new_bookshelf and new_bookshelf.strip():
+                            selected_shelf_id = new_bookshelf.split(' - ')[0]
 
-                            # Extract owner ID
-                            selected_owner_id = ''
-                            if new_owner and new_owner.strip():
-                                selected_owner_id = new_owner.split(' - ')[0]
+                        # Extract owner ID
+                        selected_owner_id = ''
+                        if new_owner and new_owner.strip():
+                            selected_owner_id = new_owner.split(' - ')[0]
 
-                            # Generate tracking number if missing
-                            tracking_to_save = ''
-                            if not current_tracking:
-                                tracking_to_save = generate_tracking_number()
+                        # Generate tracking number if missing
+                        tracking_to_save = ''
+                        if not current_tracking:
+                            tracking_to_save = generate_tracking_number()
 
-                            edit_book(book_id, new_title.strip(), new_authors.strip(),
-                                    new_publisher.strip(), new_edition.strip(),
-                                    new_publish_date_str,
-                                    new_page_count.strip() if new_page_count else "",
-                                    new_isbn.strip() if new_isbn else "",
-                                    new_preview_url.strip() if new_preview_url else "",
-                                    selected_shelf_id,
-                                    tracking_to_save,
-                                    selected_owner_id)
+                        edit_book(book_id, new_title.strip(), new_authors.strip(),
+                                new_publisher.strip(), new_edition.strip(),
+                                new_publish_date_str,
+                                new_page_count.strip() if new_page_count else "",
+                                new_isbn.strip() if new_isbn else "",
+                                new_preview_url.strip() if new_preview_url else "",
+                                selected_shelf_id,
+                                tracking_to_save,
+                                selected_owner_id)
 
-                            # Clear edit session state
-                            st.session_state.edit_book_data = {}
+                        # Clear edit session state
+                        st.session_state.edit_book_data = {}
 
-                            success_msg = "✅ Book updated successfully!"
-                            if tracking_to_save:
-                                success_msg += f" Tracking #: {tracking_to_save}"
+                        success_msg = "✅ Book updated successfully!"
+                        if tracking_to_save:
+                            success_msg += f" Tracking #: {tracking_to_save}"
 
-                            st.success(success_msg)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Failed to update book: {str(e)}")
+                        st.success(success_msg)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Failed to update book: {str(e)}")
 
             with tab2:
                 st.warning("⚠️ This action cannot be undone!")
@@ -716,6 +789,9 @@ def edit_delete_book_page():
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Failed to delete book: {str(e)}")
+    else:
+        # No book selected
+        st.info("👆 Please select a book from the table above to edit or delete")
 
 def manage_bookshelves_page():
     """Manage bookshelves page"""

@@ -374,7 +374,6 @@ def return_book(book_id):
                 'returned_date': current_date
             })
 
-        get_books.clear()  # Clear cache after returning
         return True, "Book returned successfully"
     except Exception as e:
         print(f"Error returning book: {e}")
