@@ -115,7 +115,7 @@ def add_book_page():
     with col_search:
         st.write("")  # Spacer for alignment
         st.write("")  # Spacer for alignment
-        search_button = st.button("🔍 Search", use_container_width=True, type="secondary")
+        search_button = st.button("🔍 Search", width="stretch", type="secondary")
 
     # Handle search button click
     if search_button:
@@ -219,9 +219,9 @@ def add_book_page():
 
         col_submit1, col_submit2 = st.columns(2)
         with col_submit1:
-            submitted = st.form_submit_button("➕ Add Book", use_container_width=True)
+            submitted = st.form_submit_button("➕ Add Book", width="stretch")
         with col_submit2:
-            clear_form = st.form_submit_button("🔄 Clear Form", use_container_width=True)
+            clear_form = st.form_submit_button("🔄 Clear Form", width="stretch")
 
         if clear_form:
             st.session_state.book_data = {
@@ -294,6 +294,65 @@ def add_book_page():
                     st.error("❌ Failed to add book!")
             except Exception as e:
                 st.error(f"❌ Failed to add book: {str(e)}")
+
+    # Show recently added books
+    st.markdown("---")
+    st.markdown("### 📚 Recently Added Books")
+    st.caption("Showing the 10 most recently added books")
+
+    books = get_books()
+    if books:
+        # Sort books by creation timestamp (most recent first) in descending order
+        # Books with no created_at timestamp will be sorted to the end
+        recent_books = sorted(
+            books,
+            key=lambda x: x.get('created_at', '1900-01-01T00:00:00'),
+            reverse=True
+        )[:10]
+
+        # Create table data
+        table_data = []
+        bookshelves = get_bookshelves()
+        owners = get_owners()
+
+        for book in recent_books:
+            authors_str = book.get('authors', 'N/A')
+            if isinstance(authors_str, list):
+                authors_str = ", ".join(authors_str)
+
+            # Get bookshelf title
+            shelf_id = book.get('bookshelf_id', '')
+            shelf_title = ''
+            if shelf_id:
+                matching_shelf = next((s for s in bookshelves if str(s.get('shelf_id')) == str(shelf_id)), None)
+                if matching_shelf:
+                    shelf_title = matching_shelf.get('title', '')
+
+            # Get owner name
+            owner_id = book.get('owner_id', '')
+            owner_name = ''
+            if owner_id:
+                matching_owner = next((o for o in owners if str(o.get('owner_id')) == str(owner_id)), None)
+                if matching_owner:
+                    owner_name = matching_owner.get('name', '')
+
+            # Get year from publish_date
+            pub_date = book.get('publish_date', '')
+            year = pub_date[:4] if pub_date and len(pub_date) >= 4 else 'N/A'
+
+            table_data.append({
+                "Tracking #": book.get('tracking_number', 'N/A'),
+                "Title": book.get('title', 'N/A')[:40] + "..." if len(book.get('title', '')) > 40 else book.get('title', 'N/A'),
+                "Author(s)": authors_str[:30] + "..." if len(authors_str) > 30 else authors_str,
+                "Year": year,
+                "Owner": owner_name if owner_name else 'N/A',
+                "Bookshelf": shelf_title if shelf_title else 'N/A',
+            })
+
+        df = pd.DataFrame(table_data)
+        st.dataframe(df, width="stretch", hide_index=True)
+    else:
+        st.info("📭 No books added yet. Add your first book above!")
 
 def view_books_page():
     """View books page with improved table display"""
@@ -443,7 +502,7 @@ def view_books_page():
             })
 
         df = pd.DataFrame(df_data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
 
     else:  # Cards view
         # Display books in expandable cards
@@ -502,370 +561,515 @@ def view_books_page():
                 st.caption(f"Firestore ID: {book.get('id', 'N/A')}")
 
 def edit_delete_book_page():
-    """Edit/Delete book page with improved table-based UI"""
+    """Manage books page with Edit/Delete functionality"""
     st.markdown("<h2>✏️ Manage Books</h2>", unsafe_allow_html=True)
 
     books = get_books()
 
-    if not books:
-        st.info("📭 No books available to edit or delete.")
-        return
+    if books:
+        # Search box
+        st.markdown("### 🔍 Search Books")
+        search_term = st.text_input(
+            "Search by Title, Author, ISBN, Year, or Tracking #",
+            placeholder="Enter search term...",
+            key="manage_search"
+        )
 
-    # Search box
-    st.markdown("### 🔍 Search Books")
-    search_term = st.text_input(
-        "Search by Title, Author, ISBN, Year, or Tracking #",
-        placeholder="Enter search term...",
-        key="manage_search"
-    )
+        # Filter books based on search
+        filtered_books = books
+        if search_term:
+            search_term_lower = search_term.lower()
+            filtered_books = [
+                book for book in books
+                if search_term_lower in book.get('title', '').lower() or
+                   search_term_lower in str(book.get('authors', '')).lower() or
+                   search_term_lower in book.get('isbn', '').lower() or
+                   search_term_lower in book.get('tracking_number', '').lower() or
+                   search_term_lower in book.get('publish_date', '')[:4]  # Year search
+            ]
 
-    # Filter books based on search
-    filtered_books = books
-    if search_term:
-        search_term_lower = search_term.lower()
-        filtered_books = [
-            book for book in books
-            if search_term_lower in book.get('title', '').lower() or
-               search_term_lower in str(book.get('authors', '')).lower() or
-               search_term_lower in book.get('isbn', '').lower() or
-               search_term_lower in book.get('tracking_number', '').lower() or
-               search_term_lower in book.get('publish_date', '')[:4]  # Year search
-        ]
+        st.info(f"📊 Showing {len(filtered_books)} of {len(books)} books")
 
-    st.info(f"📊 Showing {len(filtered_books)} of {len(books)} books")
+        if filtered_books:
+            st.markdown("---")
 
-    if not filtered_books:
-        st.warning("No books match your search criteria.")
-        return
+            # Create a table with book data
+            st.markdown("### 📚 Books List")
+            st.caption("Click on a row below, then use Edit or Delete buttons")
 
-    st.markdown("---")
+            # Prepare table data
+            bookshelves = get_bookshelves()
+            owners = get_owners()
 
-    # Create a table with book data
-    st.markdown("### 📚 Books List")
-    st.caption("Click on a row below, then use Edit or Delete buttons")
+            table_data = []
+            for idx, book in enumerate(filtered_books):
+                authors_str = book.get('authors', 'N/A')
+                if isinstance(authors_str, list):
+                    authors_str = ", ".join(authors_str)
 
-    # Prepare table data
-    bookshelves = get_bookshelves()
-    owners = get_owners()
+                # Get year from publish_date
+                pub_date = book.get('publish_date', '')
+                year = pub_date[:4] if pub_date and len(pub_date) >= 4 else 'N/A'
 
-    table_data = []
-    for idx, book in enumerate(filtered_books):
-        authors_str = book.get('authors', 'N/A')
-        if isinstance(authors_str, list):
-            authors_str = ", ".join(authors_str)
+                table_data.append({
+                    "Tracking #": book.get('tracking_number', 'N/A'),
+                    "Title": book.get('title', 'N/A'),
+                    "Author(s)": authors_str[:40] + "..." if len(authors_str) > 40 else authors_str,
+                    "ISBN": book.get('isbn', 'N/A'),
+                    "Year": year,
+                })
 
-        # Get year from publish_date
-        pub_date = book.get('publish_date', '')
-        year = pub_date[:4] if pub_date and len(pub_date) >= 4 else 'N/A'
+            df = pd.DataFrame(table_data)
 
-        table_data.append({
-            "Tracking #": book.get('tracking_number', 'N/A'),
-            "Title": book.get('title', 'N/A'),
-            "Author(s)": authors_str[:40] + "..." if len(authors_str) > 40 else authors_str,
-            "ISBN": book.get('isbn', 'N/A'),
-            "Year": year,
-        })
+            # Display table with selection
+            event = st.dataframe(
+                df,
+                width="stretch",
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="single-row"
+            )
 
-    df = pd.DataFrame(table_data)
+            # Get selected book
+            selected_book = None
+            book_id = None
 
-    # Display table with selection
-    event = st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row"
-    )
-
-    # Get selected book
-    selected_book = None
-    book_id = None
-
-    if event.selection.rows:
-        selected_idx = event.selection.rows[0]
-        selected_book = filtered_books[selected_idx]
-        book_id = selected_book.get('id')
-
-    st.markdown("---")
-
-    if selected_book:
-        # Create tabs for Edit and Delete
-        tab1, tab2 = st.tabs(["✏️ Edit", "🗑️ Delete"])
-
-        with tab1:
-            # Initialize session state for edit form
-            if 'edit_book_data' not in st.session_state:
-                st.session_state.edit_book_data = {}
-
-            # Search button to auto-fill missing data
-            st.markdown("### 🔍 Auto-Fill Missing Information")
-            col_search1, col_search2 = st.columns([3, 1])
-
-            with col_search1:
-                st.write(f"**Current Title:** {selected_book.get('title', 'N/A')}")
-
-            with col_search2:
-                search_btn = st.button("🔍 Search & Fill", use_container_width=True, type="secondary")
-
-            if search_btn:
-                title_to_search = selected_book.get('title', '')
-                if title_to_search:
-                    with st.spinner("Searching for book information..."):
-                        book_info = search_book_by_title(title_to_search)
-
-                        if book_info:
-                            # Only update fields that are empty or missing
-                            updated_fields = []
-
-                            if not selected_book.get('isbn') and book_info.get('isbn'):
-                                st.session_state.edit_book_data['isbn'] = book_info['isbn']
-                                updated_fields.append('ISBN')
-
-                            if not selected_book.get('page_count') and book_info.get('page_count'):
-                                st.session_state.edit_book_data['page_count'] = str(book_info['page_count'])
-                                updated_fields.append('Pages')
-
-                            if not selected_book.get('preview_url') and book_info.get('preview_url'):
-                                st.session_state.edit_book_data['preview_url'] = book_info['preview_url']
-                                updated_fields.append('Preview URL')
-
-                            if not selected_book.get('publisher') and book_info.get('publisher'):
-                                st.session_state.edit_book_data['publisher'] = book_info['publisher']
-                                updated_fields.append('Publisher')
-
-                            if not selected_book.get('publish_date') and book_info.get('published_date'):
-                                st.session_state.edit_book_data['publish_date'] = book_info['published_date']
-                                updated_fields.append('Publish Date')
-
-                            if updated_fields:
-                                st.success(f"✅ Updated fields: {', '.join(updated_fields)}")
-                                st.rerun()
-                            else:
-                                st.info("ℹ️ All fields already have data. No updates needed.")
-                        else:
-                            st.warning("⚠️ No information found for this title.")
+            if event.selection.rows:
+                selected_idx = event.selection.rows[0]
+                selected_book = filtered_books[selected_idx]
+                book_id = selected_book.get('id')
 
             st.markdown("---")
 
-            with st.form("edit_book_form"):
-                col1, col2 = st.columns(2)
+            if selected_book:
+                # Create tabs for Edit and Delete
+                tab1, tab2 = st.tabs(["✏️ Edit", "🗑️ Delete"])
 
-                # Check if tracking number exists, if not show warning
-                current_tracking = selected_book.get('tracking_number', '')
-                if not current_tracking:
-                    new_tracking = generate_tracking_number()
-                    st.warning(f"⚠️ **No tracking number!** Will auto-generate: {new_tracking}")
-                else:
-                    st.info(f"📋 **Tracking Number:** {current_tracking}")
-
-                with col1:
-                    new_title = st.text_input("Title", value=selected_book.get('title', ''))
-
-                    authors_val = selected_book.get('authors', '')
-                    if isinstance(authors_val, list):
-                        authors_val = ", ".join(authors_val)
-                    new_authors = st.text_input("Author(s)", value=authors_val)
-
-                    # Use session state data if available from search, otherwise use book data
-                    publisher_value = st.session_state.edit_book_data.get('publisher', selected_book.get('publisher', ''))
-                    new_publisher = st.text_input("Publisher", value=publisher_value)
-
-                    isbn_value = st.session_state.edit_book_data.get('isbn', selected_book.get('isbn', ''))
-                    new_isbn = st.text_input("ISBN", value=isbn_value)
-
-                with col2:
-                    new_edition = st.text_input("Edition", value=selected_book.get('edition', ''))
-
-                    page_count_value = st.session_state.edit_book_data.get('page_count', selected_book.get('page_count', ''))
-                    new_page_count = st.text_input("Pages", value=page_count_value)
-
-                    # Parse date - use session state if available
-                    date_str = st.session_state.edit_book_data.get('publish_date', selected_book.get('publish_date', ''))
-                    try:
-                        current_date = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else datetime.now().date()
-                    except:
-                        current_date = datetime.now().date()
-
-                    new_publish_date = st.date_input("Publish Date", value=current_date)
-
-                # Bookshelf selector
-                bookshelves = get_bookshelves()
-                shelf_options = [''] + [f"{shelf.get('shelf_id')} - {shelf.get('title')}" for shelf in bookshelves]
-
-                # Find current bookshelf index
-                current_shelf_id = str(selected_book.get('bookshelf_id', ''))
-                current_index = 0
-                if current_shelf_id:
-                    for i, opt in enumerate(shelf_options):
-                        if opt.startswith(f"{current_shelf_id} -"):
-                            current_index = i
-                            break
-
-                new_bookshelf = st.selectbox("Bookshelf Location", shelf_options, index=current_index)
-
-                # Owner selector
-                owners = get_owners()
-                owner_options = [''] + [f"{owner.get('owner_id')} - {owner.get('name')}" for owner in owners]
-
-                # Find current owner index
-                current_owner_id = str(selected_book.get('owner_id', ''))
-                current_owner_index = 0
-                if current_owner_id:
-                    for i, opt in enumerate(owner_options):
-                        if opt.startswith(f"{current_owner_id} -"):
-                            current_owner_index = i
-                            break
-
-                new_owner = st.selectbox("Owner", owner_options, index=current_owner_index)
-
-                preview_url_value = st.session_state.edit_book_data.get('preview_url', selected_book.get('preview_url', ''))
-                new_preview_url = st.text_input("Google Books Preview URL", value=preview_url_value)
-
-                update_button = st.form_submit_button("💾 Update Book", use_container_width=True)
-
-                if update_button:
-                    if not new_title or not new_title.strip():
-                        st.error("❌ Title cannot be empty!")
-                        return
-                    if not new_authors or not new_authors.strip():
-                        st.error("❌ At least one author is required!")
-                        return
-
-                    try:
-                        new_publish_date_str = new_publish_date.strftime("%Y-%m-%d")
-
-                        # Extract bookshelf ID
-                        selected_shelf_id = ''
-                        if new_bookshelf and new_bookshelf.strip():
-                            selected_shelf_id = new_bookshelf.split(' - ')[0]
-
-                        # Extract owner ID
-                        selected_owner_id = ''
-                        if new_owner and new_owner.strip():
-                            selected_owner_id = new_owner.split(' - ')[0]
-
-                        # Generate tracking number if missing
-                        tracking_to_save = ''
-                        if not current_tracking:
-                            tracking_to_save = generate_tracking_number()
-
-                        edit_book(book_id, new_title.strip(), new_authors.strip(),
-                                new_publisher.strip(), new_edition.strip(),
-                                new_publish_date_str,
-                                new_page_count.strip() if new_page_count else "",
-                                new_isbn.strip() if new_isbn else "",
-                                new_preview_url.strip() if new_preview_url else "",
-                                selected_shelf_id,
-                                tracking_to_save,
-                                selected_owner_id)
-
-                        # Clear edit session state
+                with tab1:
+                    # Initialize session state for edit form
+                    if 'edit_book_data' not in st.session_state:
                         st.session_state.edit_book_data = {}
 
-                        success_msg = "✅ Book updated successfully!"
-                        if tracking_to_save:
-                            success_msg += f" Tracking #: {tracking_to_save}"
+                    # Search button to auto-fill missing data
+                    st.markdown("### 🔍 Auto-Fill Missing Information")
+                    col_search1, col_search2 = st.columns([3, 1])
 
-                        st.success(success_msg)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Failed to update book: {str(e)}")
+                    with col_search1:
+                        st.write(f"**Current Title:** {selected_book.get('title', 'N/A')}")
 
-            with tab2:
-                st.warning("⚠️ This action cannot be undone!")
-                st.write(f"**Title:** {selected_book.get('title', 'N/A')}")
+                    with col_search2:
+                        search_btn = st.button("🔍 Search & Fill", width="stretch", type="secondary")
 
-                authors_display = selected_book.get('authors', 'N/A')
-                if isinstance(authors_display, list):
-                    authors_display = ", ".join(authors_display)
-                st.write(f"**Author(s):** {authors_display}")
+                    if search_btn:
+                        title_to_search = selected_book.get('title', '')
+                        if title_to_search:
+                            with st.spinner("Searching for book information..."):
+                                book_info = search_book_by_title(title_to_search)
 
-                col1, col2, col3 = st.columns([1, 1, 2])
-                with col1:
-                    if st.button("🗑️ Confirm Delete", type="primary", use_container_width=True):
-                        try:
-                            delete_book(book_id)
-                            st.success("✅ Book deleted successfully!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Failed to delete book: {str(e)}")
+                                if book_info:
+                                    # Only update fields that are empty or missing
+                                    updated_fields = []
+
+                                    if not selected_book.get('isbn') and book_info.get('isbn'):
+                                        st.session_state.edit_book_data['isbn'] = book_info['isbn']
+                                        updated_fields.append('ISBN')
+
+                                    if not selected_book.get('page_count') and book_info.get('page_count'):
+                                        st.session_state.edit_book_data['page_count'] = str(book_info['page_count'])
+                                        updated_fields.append('Pages')
+
+                                    if not selected_book.get('preview_url') and book_info.get('preview_url'):
+                                        st.session_state.edit_book_data['preview_url'] = book_info['preview_url']
+                                        updated_fields.append('Preview URL')
+
+                                    if not selected_book.get('publisher') and book_info.get('publisher'):
+                                        st.session_state.edit_book_data['publisher'] = book_info['publisher']
+                                        updated_fields.append('Publisher')
+
+                                    if not selected_book.get('publish_date') and book_info.get('published_date'):
+                                        st.session_state.edit_book_data['publish_date'] = book_info['published_date']
+                                        updated_fields.append('Publish Date')
+
+                                    if updated_fields:
+                                        st.success(f"✅ Updated fields: {', '.join(updated_fields)}")
+                                        st.rerun()
+                                    else:
+                                        st.info("ℹ️ All fields already have data. No updates needed.")
+                                else:
+                                    st.warning("⚠️ No information found for this title.")
+
+                    st.markdown("---")
+
+                    with st.form("edit_book_form"):
+                        col1, col2 = st.columns(2)
+
+                        # Check if tracking number exists, if not show warning
+                        current_tracking = selected_book.get('tracking_number', '')
+                        if not current_tracking:
+                            new_tracking = generate_tracking_number()
+                            st.warning(f"⚠️ **No tracking number!** Will auto-generate: {new_tracking}")
+                        else:
+                            st.info(f"📋 **Tracking Number:** {current_tracking}")
+
+                        with col1:
+                            new_title = st.text_input("Title", value=selected_book.get('title', ''))
+
+                            authors_val = selected_book.get('authors', '')
+                            if isinstance(authors_val, list):
+                                authors_val = ", ".join(authors_val)
+                            new_authors = st.text_input("Author(s)", value=authors_val)
+
+                            # Use session state data if available from search, otherwise use book data
+                            publisher_value = st.session_state.edit_book_data.get('publisher', selected_book.get('publisher', ''))
+                            new_publisher = st.text_input("Publisher", value=publisher_value)
+
+                            isbn_value = st.session_state.edit_book_data.get('isbn', selected_book.get('isbn', ''))
+                            new_isbn = st.text_input("ISBN", value=isbn_value)
+
+                        with col2:
+                            new_edition = st.text_input("Edition", value=selected_book.get('edition', ''))
+
+                            page_count_value = st.session_state.edit_book_data.get('page_count', selected_book.get('page_count', ''))
+                            new_page_count = st.text_input("Pages", value=page_count_value)
+
+                            # Parse date - use session state if available
+                            date_str = st.session_state.edit_book_data.get('publish_date', selected_book.get('publish_date', ''))
+                            try:
+                                current_date = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else datetime.now().date()
+                            except:
+                                current_date = datetime.now().date()
+
+                            new_publish_date = st.date_input("Publish Date", value=current_date)
+
+                        # Bookshelf selector
+                        bookshelves = get_bookshelves()
+                        shelf_options = [''] + [f"{shelf.get('shelf_id')} - {shelf.get('title')}" for shelf in bookshelves]
+
+                        # Find current bookshelf index
+                        current_shelf_id = str(selected_book.get('bookshelf_id', ''))
+                        current_index = 0
+                        if current_shelf_id:
+                            for i, opt in enumerate(shelf_options):
+                                if opt.startswith(f"{current_shelf_id} -"):
+                                    current_index = i
+                                    break
+
+                        new_bookshelf = st.selectbox("Bookshelf Location", shelf_options, index=current_index)
+
+                        # Owner selector
+                        owners = get_owners()
+                        owner_options = [''] + [f"{owner.get('owner_id')} - {owner.get('name')}" for owner in owners]
+
+                        # Find current owner index
+                        current_owner_id = str(selected_book.get('owner_id', ''))
+                        current_owner_index = 0
+                        if current_owner_id:
+                            for i, opt in enumerate(owner_options):
+                                if opt.startswith(f"{current_owner_id} -"):
+                                    current_owner_index = i
+                                    break
+
+                        new_owner = st.selectbox("Owner", owner_options, index=current_owner_index)
+
+                        preview_url_value = st.session_state.edit_book_data.get('preview_url', selected_book.get('preview_url', ''))
+                        new_preview_url = st.text_input("Google Books Preview URL", value=preview_url_value)
+
+                        update_button = st.form_submit_button("💾 Update Book", width="stretch")
+
+                        if update_button:
+                            if not new_title or not new_title.strip():
+                                st.error("❌ Title cannot be empty!")
+                            elif not new_authors or not new_authors.strip():
+                                st.error("❌ At least one author is required!")
+                            else:
+                                try:
+                                    new_publish_date_str = new_publish_date.strftime("%Y-%m-%d")
+
+                                    # Extract bookshelf ID
+                                    selected_shelf_id = ''
+                                    if new_bookshelf and new_bookshelf.strip():
+                                        selected_shelf_id = new_bookshelf.split(' - ')[0]
+
+                                    # Extract owner ID
+                                    selected_owner_id = ''
+                                    if new_owner and new_owner.strip():
+                                        selected_owner_id = new_owner.split(' - ')[0]
+
+                                    # Generate tracking number if missing
+                                    tracking_to_save = ''
+                                    if not current_tracking:
+                                        tracking_to_save = generate_tracking_number()
+
+                                    edit_book(book_id, new_title.strip(), new_authors.strip(),
+                                            new_publisher.strip(), new_edition.strip(),
+                                            new_publish_date_str,
+                                            new_page_count.strip() if new_page_count else "",
+                                            new_isbn.strip() if new_isbn else "",
+                                            new_preview_url.strip() if new_preview_url else "",
+                                            selected_shelf_id,
+                                            tracking_to_save,
+                                            selected_owner_id)
+
+                                    # Clear edit session state
+                                    st.session_state.edit_book_data = {}
+
+                                    success_msg = "✅ Book updated successfully!"
+                                    if tracking_to_save:
+                                        success_msg += f" Tracking #: {tracking_to_save}"
+
+                                    st.success(success_msg)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Failed to update book: {str(e)}")
+
+                with tab2:
+                    st.warning("⚠️ This action cannot be undone!")
+                    st.write(f"**Title:** {selected_book.get('title', 'N/A')}")
+
+                    authors_display = selected_book.get('authors', 'N/A')
+                    if isinstance(authors_display, list):
+                        authors_display = ", ".join(authors_display)
+                    st.write(f"**Author(s):** {authors_display}")
+
+                    col1, col2, col3 = st.columns([1, 1, 2])
+                    with col1:
+                        if st.button("🗑️ Confirm Delete", type="primary", width="stretch"):
+                            try:
+                                delete_book(book_id)
+                                st.success("✅ Book deleted successfully!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Failed to delete book: {str(e)}")
+            else:
+                # No book selected
+                st.info("👆 Please select a book from the table above to edit or delete")
+        else:
+            st.warning("No books match your search criteria.")
     else:
-        # No book selected
-        st.info("👆 Please select a book from the table above to edit or delete")
+        st.info("📭 No books available to manage. Add your first book using the 'Add Book' page!")
 
 def manage_bookshelves_page():
     """Manage bookshelves page"""
     st.markdown("<h2>📚 Manage Bookshelves</h2>", unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["➕ Add Bookshelf", "📋 View/Edit Bookshelves"])
+    shelves = get_bookshelves()
 
-    with tab1:
-        st.markdown("### Add New Bookshelf")
-        with st.form("add_shelf_form"):
-            shelf_title = st.text_input("Shelf Title*", placeholder="e.g., Living Room Shelf A")
-            shelf_description = st.text_area("Description", placeholder="Optional description")
+    if shelves:
+        # Create table view
+        st.caption("Click on a row below, then use Edit or Delete buttons")
 
-            submitted = st.form_submit_button("➕ Add Bookshelf", use_container_width=True)
+        table_data = []
+        for shelf in sorted(shelves, key=lambda x: x.get('shelf_id', 0)):
+            table_data.append({
+                "Shelf ID": shelf.get('shelf_id', 'N/A'),
+                "Title": shelf.get('title', 'Untitled'),
+                "Description": shelf.get('description', '')[:50] + "..." if len(shelf.get('description', '')) > 50 else shelf.get('description', ''),
+            })
 
-            if submitted:
-                if not shelf_title or not shelf_title.strip():
-                    st.error("❌ Shelf title is required!")
-                else:
-                    success, shelf_id = add_bookshelf(shelf_title.strip(), shelf_description.strip())
-                    if success:
-                        st.success(f"✅ Bookshelf added successfully! ID: {shelf_id}")
-                        st.rerun()
-                    else:
-                        st.error("❌ Failed to add bookshelf!")
+        df = pd.DataFrame(table_data)
 
-    with tab2:
-        st.markdown("### Existing Bookshelves")
-        shelves = get_bookshelves()
+        # Display table with selection
+        event = st.dataframe(
+            df,
+            width="stretch",
+            hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row"
+        )
 
-        if not shelves:
-            st.info("📭 No bookshelves created yet.")
-        else:
-            for shelf in sorted(shelves, key=lambda x: x.get('shelf_id', 0)):
-                with st.expander(f"📚 Shelf #{shelf.get('shelf_id')} - {shelf.get('title', 'Untitled')}"):
-                    with st.form(f"edit_shelf_{shelf.get('id')}"):
-                        new_title = st.text_input("Title", value=shelf.get('title', ''))
-                        new_desc = st.text_area("Description", value=shelf.get('description', ''))
+        # Get selected shelf
+        selected_shelf = None
+        shelf_id = None
 
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            update = st.form_submit_button("💾 Update", use_container_width=True)
-                        with col2:
-                            delete = st.form_submit_button("🗑️ Delete", type="primary", use_container_width=True)
+        if event.selection.rows:
+            selected_idx = event.selection.rows[0]
+            sorted_shelves = sorted(shelves, key=lambda x: x.get('shelf_id', 0))
+            selected_shelf = sorted_shelves[selected_idx]
+            shelf_id = selected_shelf.get('id')
 
-                        if update:
-                            if edit_bookshelf(shelf.get('id'), new_title, new_desc):
+        st.markdown("---")
+
+        if selected_shelf:
+            # Create tabs for Edit and Delete
+            tab_edit, tab_delete = st.tabs(["✏️ Edit", "🗑️ Delete"])
+
+            with tab_edit:
+                with st.form(f"edit_shelf_{shelf_id}"):
+                    st.info(f"**Shelf ID:** {selected_shelf.get('shelf_id')}")
+                    new_title = st.text_input("Title", value=selected_shelf.get('title', ''))
+                    new_desc = st.text_area("Description", value=selected_shelf.get('description', ''))
+
+                    update = st.form_submit_button("💾 Update Bookshelf", width="stretch")
+
+                    if update:
+                        if not new_title or not new_title.strip():
+                            st.error("❌ Title cannot be empty!")
+                        else:
+                            if edit_bookshelf(shelf_id, new_title, new_desc):
                                 st.success("✅ Updated successfully!")
                                 st.rerun()
                             else:
                                 st.error("❌ Update failed!")
 
-                        if delete:
-                            if delete_bookshelf(shelf.get('id')):
-                                st.success("✅ Deleted successfully!")
-                                st.rerun()
-                            else:
-                                st.error("❌ Delete failed!")
+            with tab_delete:
+                st.warning("⚠️ This action cannot be undone!")
+                st.write(f"**Shelf ID:** {selected_shelf.get('shelf_id')}")
+                st.write(f"**Title:** {selected_shelf.get('title', 'Untitled')}")
+
+                col1, col2, col3 = st.columns([1, 1, 2])
+                with col1:
+                    if st.button("🗑️ Confirm Delete", type="primary", width="stretch"):
+                        if delete_bookshelf(shelf_id):
+                            st.success("✅ Deleted successfully!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Delete failed!")
+        else:
+            st.info("👆 Please select a bookshelf from the table above to edit or delete")
+
+    # Add Bookshelf button at the bottom
+    st.markdown("---")
+    st.markdown("### ➕ Add New Bookshelf")
+
+    if st.button("➕ Add New Bookshelf", width="stretch", type="primary"):
+        st.session_state.show_add_shelf_form = True
+        st.rerun()
+
+    # Show add form if button was clicked
+    if st.session_state.get('show_add_shelf_form', False):
+        st.markdown("### 📚 Add New Bookshelf")
+
+        col1, col2 = st.columns([4, 1])
+        with col2:
+            if st.button("✖ Close", width="stretch", key="close_add_shelf"):
+                st.session_state.show_add_shelf_form = False
+                st.rerun()
+
+        with st.form("add_shelf_form"):
+            shelf_title = st.text_input("Shelf Title*", placeholder="e.g., Living Room Shelf A")
+            shelf_description = st.text_area("Description", placeholder="Optional description")
+
+            submitted = st.form_submit_button("➕ Add Bookshelf", width="stretch")
+
+            if submitted:
+                if not shelf_title or not shelf_title.strip():
+                    st.error("❌ Shelf title is required!")
+                else:
+                    success, new_shelf_id = add_bookshelf(shelf_title.strip(), shelf_description.strip())
+                    if success:
+                        st.session_state.show_add_shelf_form = False
+                        st.success(f"✅ Bookshelf added successfully! ID: {new_shelf_id}")
+                        st.balloons()
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to add bookshelf!")
 
 def manage_owners_page():
     """Manage book owners page"""
     st.markdown("<h2>👤 Manage Owners</h2>", unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["➕ Add Owner", "📋 View/Edit Owners"])
+    owners = get_owners()
 
-    with tab1:
-        st.markdown("### Add New Owner")
+    if owners:
+        # Create table view
+        st.caption("Click on a row below, then use Edit or Delete buttons")
+
+        table_data = []
+        for owner in sorted(owners, key=lambda x: x.get('owner_id', '')):
+            table_data.append({
+                "Owner ID": owner.get('owner_id', 'N/A'),
+                "Name": owner.get('name', 'Unnamed'),
+                "Email": owner.get('email', 'N/A'),
+                "Cell Phone": owner.get('cell_phone', 'N/A'),
+            })
+
+        df = pd.DataFrame(table_data)
+
+        # Display table with selection
+        event = st.dataframe(
+            df,
+            width="stretch",
+            hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row"
+        )
+
+        # Get selected owner
+        selected_owner = None
+        owner_db_id = None
+
+        if event.selection.rows:
+            selected_idx = event.selection.rows[0]
+            sorted_owners = sorted(owners, key=lambda x: x.get('owner_id', ''))
+            selected_owner = sorted_owners[selected_idx]
+            owner_db_id = selected_owner.get('id')
+
+        st.markdown("---")
+
+        if selected_owner:
+            # Create tabs for Edit and Delete
+            tab_edit, tab_delete = st.tabs(["✏️ Edit", "🗑️ Delete"])
+
+            with tab_edit:
+                with st.form(f"edit_owner_{owner_db_id}"):
+                    st.info(f"**Owner ID:** {selected_owner.get('owner_id')} (cannot be changed)")
+                    new_name = st.text_input("Name", value=selected_owner.get('name', ''))
+                    new_email = st.text_input("Email", value=selected_owner.get('email', ''))
+                    new_phone = st.text_input("Cell Phone", value=selected_owner.get('cell_phone', ''))
+
+                    update = st.form_submit_button("💾 Update Owner", width="stretch")
+
+                    if update:
+                        if not new_name or not new_name.strip():
+                            st.error("❌ Name cannot be empty!")
+                        else:
+                            if edit_owner(owner_db_id, new_name, new_email, new_phone):
+                                st.success("✅ Updated successfully!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Update failed!")
+
+            with tab_delete:
+                st.warning("⚠️ This action cannot be undone!")
+                st.write(f"**Owner ID:** {selected_owner.get('owner_id')}")
+                st.write(f"**Name:** {selected_owner.get('name', 'Unnamed')}")
+
+                col1, col2, col3 = st.columns([1, 1, 2])
+                with col1:
+                    if st.button("🗑️ Confirm Delete", type="primary", width="stretch"):
+                        if delete_owner(owner_db_id):
+                            st.success("✅ Deleted successfully!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Delete failed!")
+        else:
+            st.info("👆 Please select an owner from the table above to edit or delete")
+
+    # Add Owner button at the bottom
+    st.markdown("---")
+    st.markdown("### ➕ Add New Owner")
+
+    if st.button("➕ Add New Owner", width="stretch", type="primary"):
+        st.session_state.show_add_owner_form = True
+        st.rerun()
+
+    # Show add form if button was clicked
+    if st.session_state.get('show_add_owner_form', False):
+        st.markdown("### 👤 Add New Owner")
+
+        col1, col2 = st.columns([4, 1])
+        with col2:
+            if st.button("✖ Close", width="stretch", key="close_add_owner"):
+                st.session_state.show_add_owner_form = False
+                st.rerun()
+
         with st.form("add_owner_form"):
             owner_id = st.text_input("Owner ID* (3 digits)", placeholder="e.g., 001", max_chars=3)
             owner_name = st.text_input("Name*", placeholder="Owner's full name")
             email = st.text_input("Email", placeholder="owner@email.com")
             cell_phone = st.text_input("Cell Phone", placeholder="+1234567890")
 
-            submitted = st.form_submit_button("➕ Add Owner", use_container_width=True)
+            submitted = st.form_submit_button("➕ Add Owner", width="stretch")
 
             if submitted:
                 if not owner_id or not owner_id.strip():
@@ -876,48 +1080,12 @@ def manage_owners_page():
                     success, message = add_owner(owner_id.strip(), owner_name.strip(),
                                                 email.strip(), cell_phone.strip())
                     if success:
+                        st.session_state.show_add_owner_form = False
                         st.success(f"✅ Owner added successfully! ID: {owner_id}")
+                        st.balloons()
                         st.rerun()
                     else:
                         st.error(f"❌ {message}")
-
-    with tab2:
-        st.markdown("### Existing Owners")
-        owners = get_owners()
-
-        if not owners:
-            st.info("📭 No owners created yet.")
-        else:
-            for owner in sorted(owners, key=lambda x: x.get('owner_id', '')):
-                with st.expander(f"👤 {owner.get('owner_id')} - {owner.get('name', 'Unnamed')}"):
-                    with st.form(f"edit_owner_{owner.get('id')}"):
-                        st.info(f"**Owner ID:** {owner.get('owner_id')} (cannot be changed)")
-                        new_name = st.text_input("Name", value=owner.get('name', ''))
-                        new_email = st.text_input("Email", value=owner.get('email', ''))
-                        new_phone = st.text_input("Cell Phone", value=owner.get('cell_phone', ''))
-
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            update = st.form_submit_button("💾 Update", use_container_width=True)
-                        with col2:
-                            delete = st.form_submit_button("🗑️ Delete", type="primary", use_container_width=True)
-
-                        if update:
-                            if not new_name or not new_name.strip():
-                                st.error("❌ Name cannot be empty!")
-                            else:
-                                if edit_owner(owner.get('id'), new_name, new_email, new_phone):
-                                    st.success("✅ Updated successfully!")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Update failed!")
-
-                        if delete:
-                            if delete_owner(owner.get('id')):
-                                st.success("✅ Deleted successfully!")
-                                st.rerun()
-                            else:
-                                st.error("❌ Delete failed!")
 
 def user_profile_page():
     """User profile page for creating/updating profile"""
@@ -958,7 +1126,7 @@ def user_profile_page():
         st.markdown("---")
         st.info("**Note:** Complete profile is required before borrowing books.")
 
-        submitted = st.form_submit_button("💾 Save Profile", use_container_width=True)
+        submitted = st.form_submit_button("💾 Save Profile", width="stretch")
 
         if submitted:
             if not full_name or not full_name.strip():
@@ -1027,41 +1195,90 @@ def manage_users_page():
     elif selected_filter == 'No Access':
         filtered_users = [u for u in users if u.get('access_level') == 'none']
 
-    # Display users
+    # Create table view
+    st.caption("Click on a row below, then use Edit or Delete buttons")
+
+    table_data = []
     for user in filtered_users:
-        email = user.get('email', 'N/A')
         access_level = user.get('access_level', 'none')
 
         # Icon based on access level
         if access_level == 'admin':
             icon = '🔒'
-        elif access_level == 'manage' or access_level == 'full':  # Map old 'full' to 'manage'
+        elif access_level == 'manage' or access_level == 'full':
             icon = '✏️'
         elif access_level == 'view':
             icon = '👁️'
         else:
             icon = '🚫'
 
-        with st.expander(f"{icon} {user.get('display_name', 'N/A')} ({email})"):
+        # Access level display
+        access_display = {
+            'admin': '🔒 Admin',
+            'manage': '✏️ Manage',
+            'full': '✏️ Manage',
+            'view': '👁️ View',
+            'none': '🚫 No Access'
+        }.get(access_level, access_level)
+
+        table_data.append({
+            "Name": user.get('display_name', 'N/A'),
+            "Email": user.get('email', 'N/A'),
+            "Access": access_display,
+            "Profile": '✅' if user.get('profile_created') else '❌',
+            "Created": user.get('created_at', 'N/A')[:10],
+        })
+
+    df = pd.DataFrame(table_data)
+
+    # Display table with selection
+    event = st.dataframe(
+        df,
+        width="stretch",
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row"
+    )
+
+    # Get selected user
+    selected_user = None
+    user_db_id = None
+
+    if event.selection.rows:
+        selected_idx = event.selection.rows[0]
+        selected_user = filtered_users[selected_idx]
+        user_db_id = selected_user.get('id')
+
+    st.markdown("---")
+
+    if selected_user:
+        email = selected_user.get('email', 'N/A')
+        access_level = selected_user.get('access_level', 'none')
+
+        # Create tabs for Edit and Delete
+        tab_edit, tab_delete = st.tabs(["✏️ Edit Access", "🗑️ Delete"])
+
+        with tab_edit:
+            st.markdown("### User Details")
+
             col1, col2 = st.columns(2)
 
             with col1:
                 st.write(f"**Email:** {email}")
-                st.write(f"**Display Name:** {user.get('display_name', 'N/A')}")
-                st.write(f"**Full Name:** {user.get('full_name', 'Not set')}")
-                st.write(f"**Cell Phone:** {user.get('cell_phone', 'Not set')}")
+                st.write(f"**Display Name:** {selected_user.get('display_name', 'N/A')}")
+                st.write(f"**Full Name:** {selected_user.get('full_name', 'Not set')}")
+                st.write(f"**Cell Phone:** {selected_user.get('cell_phone', 'Not set')}")
 
             with col2:
-                st.write(f"**Profile Created:** {'✅ Yes' if user.get('profile_created') else '❌ No'}")
-                st.write(f"**Created:** {user.get('created_at', 'N/A')[:10]}")
-                st.write(f"**Last Login:** {user.get('last_login', 'N/A')[:10]}")
+                st.write(f"**Profile Created:** {'✅ Yes' if selected_user.get('profile_created') else '❌ No'}")
+                st.write(f"**Created:** {selected_user.get('created_at', 'N/A')[:10]}")
+                st.write(f"**Last Login:** {selected_user.get('last_login', 'N/A')[:10]}")
 
-                if user.get('approved_by'):
-                    st.write(f"**Approved By:** {user.get('approved_by')}")
+                if selected_user.get('approved_by'):
+                    st.write(f"**Approved By:** {selected_user.get('approved_by')}")
 
-            # Access level control
             st.markdown("---")
-            st.markdown("**Change Access Level:**")
+            st.markdown("### Change Access Level")
 
             # Map old 'full' to new 'manage' for backward compatibility
             display_access_level = 'manage' if access_level == 'full' else access_level
@@ -1074,31 +1291,37 @@ def manage_users_page():
                 "Access Level",
                 ['admin', 'manage', 'view', 'none'],
                 index=['admin', 'manage', 'view', 'none'].index(display_access_level),
-                key=f"access_{user.get('id')}"
+                key=f"access_{user_db_id}"
             )
 
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                if st.button(f"💾 Update Access", key=f"update_{user.get('id')}", use_container_width=True):
-                    success = update_user_access(user.get('id'), new_access, st.session_state.user_email)
-                    if success:
-                        st.success(f"✅ Updated {email} to {new_access} access!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Failed to update access!")
+            if st.button(f"💾 Update Access", key=f"update_{user_db_id}", width="stretch"):
+                success = update_user_access(user_db_id, new_access, st.session_state.user_email)
+                if success:
+                    st.success(f"✅ Updated {email} to {new_access} access!")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to update access!")
 
-            with col_btn2:
-                if st.button(f"🗑️ Delete User", key=f"delete_{user.get('id')}", type="primary", use_container_width=True):
-                    # Prevent deleting yourself
-                    if email == st.session_state.user_email:
-                        st.error("❌ You cannot delete your own account!")
-                    else:
-                        success = delete_user(user.get('id'))
+        with tab_delete:
+            st.warning("⚠️ This action cannot be undone!")
+            st.write(f"**Email:** {email}")
+            st.write(f"**Name:** {selected_user.get('display_name', 'N/A')}")
+
+            # Prevent deleting yourself
+            if email == st.session_state.user_email:
+                st.error("❌ You cannot delete your own account!")
+            else:
+                col1, col2, col3 = st.columns([1, 1, 2])
+                with col1:
+                    if st.button("🗑️ Confirm Delete", type="primary", width="stretch"):
+                        success = delete_user(user_db_id)
                         if success:
                             st.success(f"✅ User {email} deleted successfully!")
                             st.rerun()
                         else:
                             st.error("❌ Failed to delete user!")
+    else:
+        st.info("👆 Please select a user from the table above to edit or delete")
 
 def book_lending_page():
     """Admin-only book lending page"""
@@ -1144,7 +1367,7 @@ def book_lending_page():
                 default_due = datetime.now().date() + timedelta(days=14)
                 due_date = st.date_input("Due Date*", value=default_due, min_value=datetime.now().date())
 
-                submitted = st.form_submit_button("📤 Lend Book", use_container_width=True)
+                submitted = st.form_submit_button("📤 Lend Book", width="stretch")
 
                 if submitted:
                     if not user_options:
@@ -1211,7 +1434,7 @@ def book_lending_page():
                         except:
                             pass
 
-                    if st.button(f"📥 Mark as Returned", key=f"return_{loan.get('id')}", use_container_width=True):
+                    if st.button(f"📥 Mark as Returned", key=f"return_{loan.get('id')}", width="stretch"):
                         success, message = return_book(loan.get('book_id'))
                         if success:
                             st.success(f"✅ {message}")
@@ -1264,7 +1487,7 @@ def book_lending_page():
                 })
 
             df = pd.DataFrame(df_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
 
 def main():
     # Check authentication first
